@@ -71,23 +71,26 @@ end)
 
 
 RegisterNetEvent('t-general:starterpack:client:startStarterPack', function(data)
-    TriggerEvent('animations:client:EmoteCommandStart', {Config.emote})
-    if lib.progressBar({
-        duration = 5000,
-        label = 'Mengambil Starter Pack...', 
-        useWhileDead = false,
-        canCancel = false,
-        disable = {
-            car = true,
-            move = true
-        },
-    }) then
+    QBCore.Functions.Progressbar('take_starterpack', "Mengambil Starter Pack...", 5000, false, true, {
+        disableMovement = true,
+        disableCarMovement = true,
+        disableMouse = false,
+        disableCombat = true,
+    },  {
+        animDict = 'missfam4',
+        anim = 'base',
+        flags = 49
+    }, {
+        model = 'p_amb_clipboard_01',
+        bone = 36029,
+        coords = vector3(0.160000, 0.080000, 0.100000),
+        rotation = vector3(-130.000000, -50.000000, 0.000000)
+    }, {}, function() -- Done
         TriggerServerEvent('t-general:starterpack:server:giveStarterPack', data.packType)
-        TriggerEvent('animations:client:EmoteCommandStart', {'c'})
-    else
-        TriggerEvent('animations:client:EmoteCommandStart', {'c'})
+    end, function() -- Cancel
+
         QBCore.Functions.Notify('Aksi dibatalkan.', 'error', 5000) 
-    end
+    end)
 end)
 
 RegisterNetEvent('t-general:starterpack:client:spawnVehicle', function(vehicleModel, plate)

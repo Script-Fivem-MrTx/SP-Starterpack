@@ -42,3 +42,6 @@ You Can Reset Starterpack with this command (Only God)
 ```
 /resetstarterpack (id)
 ```
+**Discord**
+STORE PLANE
+Link : https://discord.gg/pcAHeuTJHR
