@@ -1,5 +1,6 @@
 ![Screenshot 2024-10-20 095121](https://github.com/user-attachments/assets/e479dda2-099e-4964-9ade-388a4d3ec339)
-![Screenshot 2024-10-20 095228](https://github.com/user-attachments/assets/54ce7bc6-a1d5-4caf-90b3-0c3fbfe21a4a)
+![man](https://github.com/user-attachments/assets/a835549e-b508-44d3-8bd7-5448bd53b251)
+
 **Configuration Management**
 You can manage the configuration using the following code:
 ```
