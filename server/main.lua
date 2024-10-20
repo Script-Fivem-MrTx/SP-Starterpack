@@ -1,168 +1,108 @@
-local QBCore = exports['qb-core']:GetCoreObject()
+-- server/server.lua
 
--- Callback to get player's gender and starter pack status
-QBCore.Functions.CreateCallback('t-general:starterpack:server:getPlayerInfo', function(source, cb)
-    local src = source
-    local Player = QBCore.Functions.GetPlayer(src)
-    local gender = Player.PlayerData.charinfo.gender -- 0 = male, 1 = female
-    local PlayerId = Player.PlayerData.citizenid
+local Config = Config -- Mengasumsikan config.lua dimuat sebagai skrip bersama
+local Utils = require('utils') -- Memuat shared/utils.lua
 
-    MySQL.Async.fetchAll('SELECT starterpack_umum_received, starterpack_ladies_received FROM players WHERE citizenid = ?', { PlayerId }, function(result)
-        if result[1] then
-            local starterpack_umum_received = result[1].starterpack_umum_received
-            local starterpack_ladies_received = result[1].starterpack_ladies_received
-            cb(gender, starterpack_umum_received, starterpack_ladies_received)
-        else
-            -- If the player record doesn't exist, default to false (hasn't received any starter packs)
-            cb(gender, false, false)
-        end
-    end)
-end)
-
--- Event to give the starter pack
-RegisterNetEvent('t-general:starterpack:server:giveStarterPack', function(packType)
-    local src = source
-    local Player = QBCore.Functions.GetPlayer(src)
-    local PlayerId = Player.PlayerData.citizenid
-
-    if packType == 'umum' then
-        -- Handle Starter Pack Umum
-        MySQL.Async.fetchScalar('SELECT starterpack_umum_received FROM players WHERE citizenid = ?', { PlayerId }, function(received)
-            if not received then
-                -- Update the starter pack status
-                MySQL.Async.execute('UPDATE players SET starterpack_umum_received = ? WHERE citizenid = ?', { true, PlayerId }, function()
-                    local items = Config.starterpacks.umum.item
-                    local vehicleModel = Config.starterpacks.umum.vehicle
-
-                    -- Give items to the player
-                    for itemName, itemData in pairs(items) do
-                        if itemName == 'cash' then
-                            Player.Functions.AddMoney('cash', itemData.amount)
-                        else
-                            Player.Functions.AddItem(itemName, itemData.amount)
-                        end
-                    end
-
-                    -- Insert the vehicle into the database and spawn it for the player
-                    local plate = GeneratePlate()
-                    MySQL.Async.execute('INSERT INTO player_vehicles (citizenid, license, vehicle, plate, state) VALUES (?, ?, ?, ?, ?)', {
-                        Player.PlayerData.citizenid,
-                        Player.PlayerData.license,
-                        vehicleModel,
-                        plate,
-                        0
-                    }, function(rowsChanged)
-                        if rowsChanged > 0 then
-                            TriggerClientEvent('t-general:starterpack:client:spawnVehicle', src, vehicleModel, plate)
-                            TriggerClientEvent('QBCore:Notify', src, 'Anda telah menerima Starter Pack Umum.', 'success', 5000) -- "You have received the General Starter Pack."
-                        else
-                            TriggerClientEvent('QBCore:Notify', src, 'Gagal memberikan kendaraan, coba lagi.', 'error', 5000) -- "Failed to give vehicle, please try again."
-                        end
-                    end)
-                end)
-            else
-                TriggerClientEvent('QBCore:Notify', src, 'Anda sudah pernah mengambil Starter Pack Umum.', 'error', 5000) -- "You have already received the General Starter Pack."
-            end
-        end)
-    elseif packType == 'ladies' then
-        -- Handle Starter Pack Ladies
-        MySQL.Async.fetchScalar('SELECT starterpack_ladies_received FROM players WHERE citizenid = ?', { PlayerId }, function(received)
-            if not received then
-                -- Update the starter pack status
-                MySQL.Async.execute('UPDATE players SET starterpack_ladies_received = ? WHERE citizenid = ?', { true, PlayerId }, function()
-                    local items = Config.starterpacks.ladies.item
-                    local vehicleModel = Config.starterpacks.ladies.vehicle
-
-                    -- Give items to the player
-                    for itemName, itemData in pairs(items) do
-                        if itemName == 'cash' then
-                            Player.Functions.AddMoney('cash', itemData.amount)
-                        else
-                            Player.Functions.AddItem(itemName, itemData.amount)
-                        end
-                    end
-
-                    -- Insert the vehicle into the database and spawn it for the player
-                    local plate = GeneratePlate()
-                    MySQL.Async.execute('INSERT INTO player_vehicles (citizenid, license, vehicle, plate, state) VALUES (?, ?, ?, ?, ?)', {
-                        Player.PlayerData.citizenid,
-                        Player.PlayerData.license,
-                        vehicleModel,
-                        plate,
-                        0
-                    }, function(rowsChanged)
-                        if rowsChanged > 0 then
-                            TriggerClientEvent('t-general:starterpack:client:spawnVehicle', src, vehicleModel, plate)
-                            TriggerClientEvent('QBCore:Notify', src, 'Anda telah menerima Starter Pack Ladies.', 'success', 5000) -- "You have received the Ladies Starter Pack."
-                        else
-                            TriggerClientEvent('QBCore:Notify', src, 'Gagal memberikan kendaraan, coba lagi.', 'error', 5000) -- "Failed to give vehicle, please try again."
-                        end
-                    end)
-                end)
-            else
-                TriggerClientEvent('QBCore:Notify', src, 'Anda sudah pernah mengambil Starter Pack Ladies.', 'error', 5000) -- "You have already received the Ladies Starter Pack."
-            end
-        end)
-    else
-        TriggerClientEvent('QBCore:Notify', src, 'Jenis Starter Pack tidak dikenal.', 'error', 5000) -- "Unknown Starter Pack type."
-    end
-end)
-
--- Function to generate a unique vehicle plate
-function GeneratePlate()
-    local plate
-    local result
-
-    repeat
-        plate = 'SP' 
-            .. QBCore.Shared.RandomStr(1):upper() 
-            .. QBCore.Shared.RandomInt(1) 
-            .. QBCore.Shared.RandomStr(1):upper() 
-            .. QBCore.Shared.RandomStr(1):upper() 
-            .. QBCore.Shared.RandomInt(1) 
-            .. QBCore.Shared.RandomInt(1)
-
-        result = MySQL.Sync.fetchScalar('SELECT plate FROM player_vehicles WHERE plate = ?', { plate })
-    until not result
-
-    return plate
-end
-
-
-local function ResetStarterPack(source, targetPlayerId)
-    local src = source
-    local TargetPlayer = QBCore.Functions.GetPlayer(targetPlayerId)
-    
-    if not TargetPlayer then
-        TriggerClientEvent('QBCore:Notify', src, 'Player not found.', 'error', 5000)
+-- Mendaftarkan callback untuk mendapatkan informasi pemain
+Utils.registerServerCallback('t-general:starterpack:server:getPlayerInfo', function(source, cb)
+    local player = Utils.framework == 'esx' and Utils.FrameworkObject.GetPlayerFromId(source) or Utils.FrameworkObject.Functions.GetPlayer(source)
+    if not player then
+        -- Jika pemain tidak ditemukan, tentukan gender default
+        local defaultGender = Utils.framework == 'esx' and 'm' or 0
+        cb(defaultGender, false, false)
         return
     end
 
-    local PlayerId = TargetPlayer.PlayerData.citizenid
+    local gender = Utils.framework == 'esx' and player.get('sex') or player.PlayerData.charinfo.gender
+    local PlayerId = Utils.getPlayerIdentifier(player)
 
-    -- Reset the starter pack statuses in the database
-    MySQL.Async.execute('UPDATE players SET starterpack_umum_received = ?, starterpack_ladies_received = ? WHERE citizenid = ?', {
-        false,
-        false,
-        PlayerId
-    }, function(affectedRows)
-        if affectedRows > 0 then
-            TriggerClientEvent('QBCore:Notify', src, 'Starter pack status has been reset for ' .. TargetPlayer.PlayerData.charinfo.firstname .. '.', 'success', 5000)
-            TriggerClientEvent('QBCore:Notify', TargetPlayer.PlayerData.source, 'Your starter pack status has been reset by an admin.', 'info', 5000)
+    local tableName = Utils.framework == 'esx' and 'users' or 'players'
+    local genderValue = Utils.framework == 'esx' and (gender == 'm' and 0 or 1) or gender
+
+    MySQL.Async.fetchAll(string.format('SELECT starterpack_umum_received, starterpack_ladies_received FROM %s WHERE %s = ?', tableName, Utils.framework == 'esx' and 'identifier' or 'citizenid'), 
+    { PlayerId }, function(result)
+        if result[1] then
+            cb(genderValue, result[1].starterpack_umum_received, result[1].starterpack_ladies_received)
         else
-            TriggerClientEvent('QBCore:Notify', src, 'Failed to reset starter pack status.', 'error', 5000)
+            cb(genderValue, false, false)
         end
     end)
-end
+end)
 
--- Register the command for admins
-QBCore.Commands.Add('resetstarterpack', 'Reset a player\'s starter pack status (Admin Only)', {{ name = 'id', help = 'Player ID' }}, true, function(source, args)
+-- Event untuk memberikan starter pack
+RegisterNetEvent('t-general:starterpack:server:giveStarterPack', function(packType)
     local src = source
-    local targetId = tonumber(args[1])
+    local player = Utils.framework == 'esx' and Utils.FrameworkObject.GetPlayerFromId(src) or Utils.FrameworkObject.Functions.GetPlayer(src)
+    if not player then return end
 
-    if targetId then
-        ResetStarterPack(src, targetId)
-    else
-        TriggerClientEvent('QBCore:Notify', src, 'Invalid player ID.', 'error', 5000)
+    local PlayerId = Utils.getPlayerIdentifier(player)
+    local tableName = Utils.framework == 'esx' and 'users' or 'players'
+    local receivedColumn = packType == 'umum' and 'starterpack_umum_received' or 'starterpack_ladies_received'
+
+    MySQL.Async.fetchScalar(string.format('SELECT %s FROM %s WHERE %s = ?', receivedColumn, tableName, Utils.framework == 'esx' and 'identifier' or 'citizenid'), { PlayerId }, function(received)
+        if not received then
+            MySQL.Async.execute(string.format('UPDATE %s SET %s = ? WHERE %s = ?', tableName, receivedColumn, Utils.framework == 'esx' and 'identifier' or 'citizenid'), 
+            { true, PlayerId }, function()
+                local items = Config.starterpacks[packType].item
+                local vehicleModel = Config.starterpacks[packType].vehicle
+
+                for itemName, itemData in pairs(items) do
+                    if itemName == 'cash' or itemName == 'money' then
+                        Utils.addMoney(player, itemData.amount)
+                    else
+                        Utils.addItem(player, itemName, itemData.amount)
+                    end
+                end
+
+                local plate = Utils.generatePlate()
+                local vehicleTable = Utils.framework == 'esx' and 'owned_vehicles' or 'player_vehicles'
+                local query = Utils.framework == 'esx' and 
+                    'INSERT INTO owned_vehicles (owner, plate, vehicle) VALUES (?, ?, ?)' or 
+                    'INSERT INTO player_vehicles (citizenid, license, vehicle, plate, state) VALUES (?, ?, ?, ?, ?)'
+
+                local params = Utils.framework == 'esx' and { PlayerId, plate, json.encode({ model = vehicleModel }) } or 
+                    { PlayerId, player.PlayerData.license, vehicleModel, plate, 0 }
+
+                MySQL.Async.execute(query, params, function()
+                    TriggerClientEvent('t-general:starterpack:client:spawnVehicle', src, vehicleModel, plate)
+                    Utils.notifyPlayer(src, packType == 'umum' and 'Anda telah menerima Starter Pack Umum.' or 'Anda telah menerima Starter Pack Ladies.', 'success')
+                end)
+            end)
+        else
+            Utils.notifyPlayer(src, packType == 'umum' and 'Anda sudah pernah mengambil Starter Pack Umum.' or 'Anda sudah pernah mengambil Starter Pack Ladies.', 'error')
+        end
+    end)
+end)
+
+-- Command untuk mereset Starter Pack
+Utils.registerCommand('resetstarterpack', 'Reset a player\'s starter pack status (Admin Only)', {
+    { name = 'id', help = 'Player ID' }
+}, true, function(source, args)
+    local targetId = tonumber(args[1])
+    if not targetId then
+        Utils.notifyPlayer(source, 'Invalid Player ID.', 'error')
+        return
     end
-end, 'god')
+
+    local targetPlayer = Utils.framework == 'esx' and Utils.FrameworkObject.GetPlayerFromId(targetId) or Utils.FrameworkObject.Functions.GetPlayer(targetId)
+    if targetPlayer then
+        local PlayerId = Utils.getPlayerIdentifier(targetPlayer)
+        local tableName = Utils.framework == 'esx' and 'users' or 'players'
+        local query = Utils.framework == 'esx' and 
+            'UPDATE users SET starterpack_umum_received = ?, starterpack_ladies_received = ? WHERE identifier = ?' or 
+            'UPDATE players SET starterpack_umum_received = ?, starterpack_ladies_received = ? WHERE citizenid = ?'
+
+        local params = { false, false, PlayerId }
+
+        MySQL.Async.execute(query, params, function(affectedRows)
+            if affectedRows > 0 then
+                Utils.notifyPlayer(source, Utils.framework == 'esx' and 'Starterpack status has been reset.' or 'Starter pack status has been reset.', 'success')
+                Utils.notifyPlayer(targetPlayer.source, Utils.framework == 'esx' and 'Starterpack Anda telah direset.' or 'Your starter pack status has been reset by an admin.', 'info')
+            else
+                Utils.notifyPlayer(source, 'Failed to reset starter pack status.', 'error')
+            end
+        end)
+    else
+        Utils.notifyPlayer(source, 'Player not found.', 'error')
+    end
+end, 'admin')
