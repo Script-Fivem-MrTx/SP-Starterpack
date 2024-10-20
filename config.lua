@@ -1,7 +1,6 @@
 -- config.lua
 Config = {
     framework = 'qbcore', -- Options: 'qbcore', 'esx'
-    emote = 'clipboard',
     FuelResource = 'qb-fuel', -- qb-fuel, ps-fuel
     target = 'qb-target', -- Options: 'qb-target', 'qtarget', 'ox_target', 'drawtext'
     locationped = vector4(-1045.74, -2726.3, 20.17, 326.2),
